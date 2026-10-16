@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Sting-II Interceptor Drone - 3D 機構與模組規格檢視器</title>
+  <style>
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body { margin: 0; overflow: hidden; background-color: #0f141c; color: #e2e8f0; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; touch-action: none; }
+    
+    /* 電腦版：左側雙面板容器 */
+    #left-column {
+      position: absolute; top: 16px; left: 16px; bottom: 16px; width: 340px;
+      display: flex; flex-direction: column; gap: 12px;
+      z-index: 10; pointer-events: none;
+    }
+
+    #ui-panel, #info-panel, #spec-panel {
+      pointer-events: auto;
+      background: rgba(15, 23, 42, 0.92); backdrop-filter: blur(10px);
+      border: 1px solid #334155; border-radius: 10px; padding: 14px 16px;
+      box-shadow: 0 12px 30px rgba(0,0,0,0.6);
+    }
+
+    #ui-panel { flex-shrink: 0; }
+    #info-panel { flex: 1; overflow-y: auto; min-height: 180px; }
+    
+    /* 電腦版：右側技術規格與重量明細面板 */
+    #spec-panel {
+      position: absolute; top: 16px; right: 16px; width: 440px;
+      max-height: calc(100vh - 32px); overflow-y: auto; z-index: 10;
+      transition: transform 0.25s ease, opacity 0.25s ease;
+    }
+    #spec-panel.collapsed { transform: translateX(460px); opacity: 0; pointer-events: none; }
+
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: #0f172a; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+
+    h2 { margin: 0 0 4px 0; font-size: 15px; color: #38bdf8; letter-spacing: 0.5px; display: flex; justify-content: space-between; align-items: center; }
+    .subtitle { font-size: 11.5px; color: #94a3b8; margin-bottom: 10px; border-bottom: 1px solid #334155; padding-bottom: 6px; }
+    
+    .control-group { margin-bottom: 8px; font-size: 12.5px; }
+    .control-group label { display: flex; justify-content: space-between; margin-bottom: 2px; color: #cbd5e1; }
+    input[type=range] { width: 100%; accent-color: #38bdf8; cursor: pointer; margin: 2px 0; }
+    
+    .btn-row { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+    button {
+      flex: 1; padding: 7px 8px; background: #1e293b; color: #f8fafc;
+      border: 1px solid #475569; border-radius: 5px; cursor: pointer; font-size: 11.5px; transition: 0.15s;
+      white-space: nowrap;
+    }
+    button:hover, button.active { background: #0284c7; border-color: #38bdf8; color: #ffffff; }
+
+    /* 互動圖例清單 */
+    .legend { margin-top: 10px; border-top: 1px solid #334155; padding-top: 8px; font-size: 12px; }
+    .legend-title { font-weight: 600; margin-bottom: 6px; color: #cbd5e1; display: flex; justify-content: space-between; }
+    .legend-item {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 5px 8px; margin-bottom: 4px; border-radius: 5px;
+      cursor: pointer; border: 1px solid transparent; transition: 0.15s;
+      background: rgba(30, 41, 59, 0.5);
+    }
+    .legend-item:hover { background: rgba(56, 189, 248, 0.15); border-color: #38bdf8; }
+    .legend-item.selected { background: rgba(56, 189, 248, 0.25); border-color: #38bdf8; font-weight: 600; }
+    .legend-left { display: flex; align-items: center; }
+    .dot { width: 9px; height: 9px; border-radius: 2px; margin-right: 7px; display: inline-block; flex-shrink: 0; }
+    .mass-badge { font-family: monospace; font-size: 11px; color: #38bdf8; background: #0f172a; padding: 1.5px 6px; border-radius: 4px; border: 1px solid #334155; }
+
+    /* 用途、產量與成本樣式 */
+    .econ-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 7px; margin-bottom: 10px; }
+    .econ-card { background: #1e293b; border: 1px solid #334155; border-radius: 6px; padding: 7px 8px; }
+    .econ-val { font-size: 14px; font-weight: 700; color: #4ade80; font-family: monospace; }
+    .econ-val.highlight { color: #facc15; }
+    .econ-lbl { font-size: 10.5px; color: #94a3b8; margin-top: 2px; }
+    
+    .info-list { margin: 0; padding: 0; list-style: none; font-size: 12px; line-height: 1.5; }
+    .info-list li { margin-bottom: 7px; padding-bottom: 7px; border-bottom: 1px dashed #1e293b; color: #cbd5e1; }
+    .info-list li:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
+    .info-tag {
+      display: inline-block; font-size: 10.5px; font-weight: 600;
+      padding: 1px 6px; border-radius: 3px; margin-right: 5px;
+      background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.35);
+    }
+
+    /* 規格表與手風琴卡片 */
+    .kpi-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
+    .kpi-card { background: #1e293b; border: 1px solid #334155; border-radius: 6px; padding: 8px; text-align: center; }
+    .kpi-val { font-size: 14px; font-weight: 700; color: #38bdf8; font-family: monospace; }
+    .kpi-lbl { font-size: 10.5px; color: #94a3b8; margin-top: 2px; }
+
+    .spec-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 14px; }
+    .spec-table th { background: #1e293b; color: #94a3b8; text-align: left; padding: 6px 8px; border-bottom: 1px solid #475569; font-weight: 600; }
+    .spec-table td { padding: 6px 8px; border-bottom: 1px solid #1e293b; color: #e2e8f0; }
+    .spec-table tr { cursor: pointer; transition: 0.12s; }
+    .spec-table tr:hover { background: rgba(56, 189, 248, 0.12); }
+    .spec-table tr.selected { background: rgba(56, 189, 248, 0.25); }
+    .num-col { text-align: right; font-family: monospace; }
+
+    .module-card { background: #1e293b; border: 1px solid #334155; border-radius: 6px; margin-bottom: 8px; overflow: hidden; }
+    .module-card.selected { border-color: #38bdf8; box-shadow: 0 0 12px rgba(56, 189, 248, 0.25); }
+    .module-header { padding: 8px 10px; background: rgba(15, 23, 42, 0.6); cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-weight: 600; font-size: 13px; }
+    .module-body { padding: 10px; font-size: 12px; line-height: 1.55; color: #cbd5e1; border-top: 1px solid #334155; display: none; }
+    .module-card.expanded .module-body { display: block; }
+    .spec-tag { display: inline-block; background: #0f172a; color: #93c5fd; padding: 2px 6px; border-radius: 4px; font-family: monospace; font-size: 11px; margin: 2px 4px 4px 0; border: 1px solid #1e3a8a; }
+    .sub-list { margin: 6px 0 0 0; padding-left: 16px; color: #94a3b8; }
+    .sub-list li { margin-bottom: 3px; }
+    .sub-list b { color: #e2e8f0; }
+
+    #toggleSpecBtn {
+      position: absolute; top: 16px; right: 16px; z-index: 9;
+      background: rgba(15, 23, 42, 0.9); border: 1px solid #38bdf8; color: #38bdf8;
+      padding: 8px 12px; border-radius: 6px; cursor: pointer; font-weight: 600; display: none;
+    }
+    #spec-panel.collapsed ~ #toggleSpecBtn { display: block; }
+    
+    #bottom-hint {
+      position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%);
+      background: rgba(15, 23, 42, 0.85); border: 1px solid #334155; padding: 6px 14px;
+      border-radius: 20px; font-size: 12px; color: #94a3b8; pointer-events: none; white-space: nowrap;
+    }
+
+    /* 手機版底部導覽列 (預設在電腦版隱藏) */
+    #mobile-nav { display: none; }
+
+    /* ================= 手機與平板響應式設計 (RWD) ================= */
+    @media (max-width: 900px) {
+      #bottom-hint, #collapseSpecBtn, #toggleSpecBtn { display: none !important; }
+      
+      #left-column {
+        position: static; width: 100%; height: auto; display: block;
+      }
+
+      /* 手機版統一將三個面板變為底部固定抽屜 (佔螢幕下半部 46%) */
+      #ui-panel, #info-panel, #spec-panel {
+        position: fixed; left: 0; right: 0; bottom: 48px; width: 100%;
+        height: 44vh; max-height: 44vh; overflow-y: auto;
+        border-radius: 14px 14px 0 0; border-bottom: none;
+        transform: none !important; opacity: 1 !important;
+        z-index: 20; display: none; padding: 12px 14px;
+        touch-action: pan-y;
+      }
+
+      #ui-panel.m-active, #info-panel.m-active, #spec-panel.m-active {
+        display: block;
+      }
+
+      /* 手機底部固定切換頁籤 */
+      #mobile-nav {
+        position: fixed; bottom: 0; left: 0; right: 0; height: 48px;
+        background: #090d14; border-top: 1px solid #334155;
+        display: flex; z-index: 30;
+      }
+      .m-tab {
+        flex: 1; border: none; border-radius: 0; background: transparent;
+        color: #94a3b8; font-size: 12px; font-weight: 600;
+        display: flex; align-items: center; justify-content: center; gap: 4px;
+        border-right: 1px solid #1e293b;
+      }
+      .m-tab:last-child { border-right: none; }
+      .m-tab.active { background: #1e293b; color: #38bdf8; border-top: 2px solid #38bdf8; }
+    }
+  </style>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+
+  <!-- 左側雙面板區 -->
+  <div id="left-column">
+    
+    <!-- 面板 1：3D 視圖與模組控制面板 -->
+    <div id="ui-panel" class="m-active">
+      <h2>STING-II 攔截無人機 3D CAD</h2>
+      <div class="subtitle">1:1 逆向工程模型 (總長 600mm / 軸距 550mm)</div>
+      
+      <div class="control-group">
+        <label><span>外殼不透明度 (X-Ray 透視)</span><span id="op-val">40%</span></label>
+        <input type="range" id="opacitySlider" min="0.05" max="1" step="0.05" value="0.40">
+      </div>
+
+      <div class="control-group">
+        <label><span>軸向爆炸視圖 (Exploded View)</span><span id="ex-val">0%</span></label>
+        <input type="range" id="explodeSlider" min="0" max="1" step="0.02" value="0">
+      </div>
+
+      <div class="btn-row">
+        <button id="toggleWire">切換線框</button>
+        <button id="togglePose">垂直 / 衝刺姿態</button>
+        <button id="toggleCG" class="active">顯示 CG/CP 標記</button>
+      </div>
+      <div class="btn-row">
+        <button id="resetFilterBtn">顯示全部模組 (Reset)</button>
+      </div>
+
+      <div class="legend">
+        <div class="legend-title">
+          <span>點擊模組高亮透視與對應規格：</span>
+          <span style="color:#38bdf8;">3,950 g</span>
+        </div>
+        <div class="legend-item" data-mod="M1">
+          <div class="legend-left"><span class="dot" style="background:#ef4444;"></span>[M1] 戰鬥部與引信模組</div>
+          <span class="mass-badge">550g (13.8%)</span>
+        </div>
+        <div class="legend-item" data-mod="M2">
+          <div class="legend-left"><span class="dot" style="background:#2563eb;"></span>[M2] 8S3P 高壓動力電池</div>
+          <span class="mass-badge">1,760g (44.0%)</span>
+        </div>
+        <div class="legend-item" data-mod="M3">
+          <div class="legend-left"><span class="dot" style="background:#5c6b43;"></span>[M3] 氣動外殼與升力主翼</div>
+          <span class="mass-badge">450g (11.3%)</span>
+        </div>
+        <div class="legend-item" data-mod="M4">
+          <div class="legend-left"><span class="dot" style="background:#22c55e;"></span>[M4] 碳纖十字主樑與機臂</div>
+          <span class="mass-badge">310g (7.8%)</span>
+        </div>
+        <div class="legend-item" data-mod="M5">
+          <div class="legend-left"><span class="dot" style="background:#94a3b8;"></span>[M5] 推進動力組 (馬達+槳×4)</div>
+          <span class="mass-badge">480g (12.0%)</span>
+        </div>
+        <div class="legend-item" data-mod="M6">
+          <div class="legend-left"><span class="dot" style="background:#f97316;"></span>[M6] 航電、飛控與 8S 電調</div>
+          <span class="mass-badge">190g (4.8%)</span>
+        </div>
+        <div class="legend-item" data-mod="M7">
+          <div class="legend-left"><span class="dot" style="background:#06b6d4;"></span>[M7] 光學尋標器與尾座腳架</div>
+          <span class="mass-badge">210g (5.3%)</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 面板 2：戰術用途、量產規模與成本效益面板 -->
+    <div id="info-panel">
+      <h2>戰術用途、量產規模與成本結構</h2>
+      <div class="subtitle">研發商：烏克蘭 Wild Hornets (野黃蜂) | 2025–2026 量產型</div>
+
+      <div class="econ-grid">
+        <div class="econ-card">
+          <div class="econ-val">$1,500–$2,100</div>
+          <div class="econ-lbl">單機 BOM 造價 (USD)</div>
+        </div>
+        <div class="econ-card">
+          <div class="econ-val highlight">&gt; 10,000 架/月</div>
+          <div class="econ-lbl">分散式月產能規模</div>
+        </div>
+        <div class="econ-card">
+          <div class="econ-val">1 : 40 ~ 1 : 90</div>
+          <div class="econ-lbl">攔截成本交換比 (vs 沙赫德)</div>
+        </div>
+        <div class="econ-card">
+          <div class="econ-val highlight">80% – 90%</div>
+          <div class="econ-lbl">實戰末段攔截成功率</div>
+        </div>
+      </div>
+
+      <ul class="info-list">
+        <li>
+          <span class="info-tag">核心用途</span><b>低成本防空硬殺傷載具</b>：專為獵殺俄軍 <b>Shahed-136 (Geran-2)</b> 遠程自殺無人機、<b>Geran-3</b> 噴射變體，以及中高空 <b>Orlan-10 / ZALA / Supercam</b> 偵察無人機而設計。
+        </li>
+        <li>
+          <span class="info-tag">作戰性能</span><b>極速 280–343 km/h</b>（巡航 140–170 km/h）、爬升率 <b>30 m/s</b>、升限 <b>5,000 m</b>（極限 7,472 m）、作戰半徑 <b>18.5–25 km</b>，採地面雷達導引幾何交會攔截。
+        </li>
+        <li>
+          <span class="info-tag">製造策略</span><b>去中心化 DFMA 架構</b>：全機氣動殼體採 FDM 3D 列印分件結合標準碳纖方管與商用現貨 (COTS) 電子件，由民用印表機群分散生產、前線快速組裝。
+        </li>
+        <li>
+          <span class="info-tag">跨域部署</span>除陸基單兵尾座垂直起降外，已整合至 <b>Magura 無人水面載具 (USV)</b>，單艇可裝載 <b>18 枚</b> 構成海上機動防空網。
+        </li>
+      </ul>
+    </div>
+
+  </div>
+
+  <!-- 面板 3：各模組技術規格、尺寸與重量明細面板 -->
+  <div id="spec-panel">
+    <h2>
+      <span>系統質量預算與模組規格明細</span>
+      <button id="collapseSpecBtn" style="flex:0; padding:3px 8px; font-size:11px;">收合 ✕</button>
+    </h2>
+    <div class="subtitle">座標基準：尾座觸地面 Z = 0mm | 鼻錐頂點 Z = 600mm</div>
+
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-val">3,950 g</div>
+        <div class="kpi-lbl">標準起飛總重 MTOW</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-val">2.6 : 1</div>
+        <div class="kpi-lbl">8S 滿載靜推重比</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-val">Z=279mm</div>
+        <div class="kpi-lbl">全機重心 (裕度+34mm)</div>
+      </div>
+    </div>
+
+    <table class="spec-table">
+      <thead>
+        <tr>
+          <th>模組代號與名稱</th>
+          <th class="num-col">重量 (g)</th>
+          <th class="num-col">佔比</th>
+          <th class="num-col">重心 Z<sub>CG</sub></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr data-mod="M1">
+          <td><span class="dot" style="background:#ef4444;"></span>M1. 戰鬥部與引信</td>
+          <td class="num-col">550 g</td>
+          <td class="num-col">13.8%</td>
+          <td class="num-col">460 mm</td>
+        </tr>
+        <tr data-mod="M2">
+          <td><span class="dot" style="background:#2563eb;"></span>M2. 8S3P 動力電池</td>
+          <td class="num-col">1,760 g</td>
+          <td class="num-col">44.0%</td>
+          <td class="num-col">310 mm</td>
+        </tr>
+        <tr data-mod="M3">
+          <td><span class="dot" style="background:#5c6b43;"></span>M3. 氣動外殼與主翼</td>
+          <td class="num-col">450 g</td>
+          <td class="num-col">11.3%</td>
+          <td class="num-col">280 mm</td>
+        </tr>
+        <tr data-mod="M4">
+          <td><span class="dot" style="background:#22c55e;"></span>M4. 碳纖翼樑與機臂</td>
+          <td class="num-col">310 g</td>
+          <td class="num-col">7.8%</td>
+          <td class="num-col">165 mm</td>
+        </tr>
+        <tr data-mod="M5">
+          <td><span class="dot" style="background:#94a3b8;"></span>M5. 推進動力組 (×4)</td>
+          <td class="num-col">480 g</td>
+          <td class="num-col">12.0%</td>
+          <td class="num-col">125 mm</td>
+        </tr>
+        <tr data-mod="M6">
+          <td><span class="dot" style="background:#f97316;"></span>M6. 航電飛控與電調</td>
+          <td class="num-col">190 g</td>
+          <td class="num-col">4.8%</td>
+          <td class="num-col">105 mm</td>
+        </tr>
+        <tr data-mod="M7">
+          <td><span class="dot" style="background:#06b6d4;"></span>M7. 尋標器與起落架</td>
+          <td class="num-col">210 g</td>
+          <td class="num-col">5.3%</td>
+          <td class="num-col">55 mm</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div style="font-size:12px; font-weight:600; color:#94a3b8; margin-bottom:8px;">各模組詳細技術規格 (點擊展開並聯動 3D 模型)：</div>
+
+    <div class="module-card expanded" data-mod="M1">
+      <div class="module-header">
+        <span><span class="dot" style="background:#ef4444;"></span>【M1】戰鬥部與安全引信模組</span>
+        <span class="mass-badge">550 g</span>
+      </div>
+      <div class="module-body">
+        <span class="spec-tag">尺寸：Ø88 × 85 mm</span>
+        <span class="spec-tag">Z軸區間：450~535 mm</span>
+        <ul class="sub-list">
+          <li><b>高爆主裝藥與預製破片套筒 (500g)</b>：軸向/環向破片散射設計，針對 Shahed-136 複合三角翼結構進行硬殺傷（另有 1,000g 短程重型變體）。</li>
+          <li><b>電子安全與遠端起爆板 E-S&A (35g)</b>：雙重保險機制，支援飛控 PWM 遠端引爆與末端慣性/壓電觸發。</li>
+          <li><b>安裝座與減震墊 (15g)</b>：3D 列印定位環，緊貼電池艙頂端作為前置壓艙物。</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="module-card" data-mod="M2">
+      <div class="module-header">
+        <span><span class="dot" style="background:#2563eb;"></span>【M2】8S3P 高壓動力電池模組</span>
+        <span class="mass-badge">1,760 g</span>
+      </div>
+      <div class="module-body">
+        <span class="spec-tag">尺寸：66 × 86 × 146 mm</span>
+        <span class="spec-tag">29.6V (滿電 33.6V)</span>
+        <span class="spec-tag">13.5Ah / ~400Wh</span>
+        <ul class="sub-list">
+          <li><b>電芯配置 (1,632g)</b>：24 顆 21700 高倍率鋰離子電芯（如 Molicel P45B，單顆 Ø21.2×70.2mm / 68g），採雙層 3×4 截角陣列疊放，對角線 108mm 滑入 Ø130mm 內膛。</li>
+          <li><b>放電性能</b>：持續放電 105A~135A（峰值 180A，支援 4.5kW 衝刺輸出）。</li>
+          <li><b>匯流與封裝 (128g)</b>：厚純鎳片、10AWG 矽膠主電源線、XT90 防打火接頭與高空保溫泡棉層。</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="module-card" data-mod="M3">
+      <div class="module-header">
+        <span><span class="dot" style="background:#5c6b43;"></span>【M3】氣動整流外殼與升力翼模組</span>
+        <span class="mass-badge">450 g</span>
+      </div>
+      <div class="module-body">
+        <span class="spec-tag">機身外徑：Ø136 mm</span>
+        <span class="spec-tag">主翼展：510 mm</span>
+        <span class="spec-tag">材質：PETG / ASA / LW-PLA</span>
+        <ul class="sub-list">
+          <li><b>頂段鈍頭鼻錐 (85g)</b>：Ø136 × 130mm，壁厚 2.0mm，含底部齒狀抗剪接合環（Serrated Joint）。</li>
+          <li><b>中段圓筒主機身 (155g)</b>：Ø136 × 210mm，壁厚 2.4mm，含內部縱向加強肋與安全插銷座。</li>
+          <li><b>一字型後掠升力主翼 (115g/對)</b>：單側長 187mm，根弦 110mm / 尖弦 55mm，厚 12mm（NACA 0012 變體），於水平衝刺時分擔升力。</li>
+          <li><b>尾錐收斂段 (95g)</b>：前端 Ø136mm 收斂至 Ø92mm，長 135mm，含 NACA 進氣導流孔與電源線維修窗。</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="module-card" data-mod="M4">
+      <div class="module-header">
+        <span><span class="dot" style="background:#22c55e;"></span>【M4】主結構翼樑與 X 型機臂模組</span>
+        <span class="mass-badge">310 g</span>
+      </div>
+      <div class="module-body">
+        <span class="spec-tag">對角軸距：550 mm</span>
+        <span class="spec-tag">碳纖主樑：14×14×380 mm</span>
+        <ul class="sub-list">
+          <li><b>貫穿式碳纖主樑與中央夾塊 (155g)</b>：2 支正交 14×14mm（壁厚 1.5mm）碳纖維方管貫穿機身，於電池艙下方（Z=190mm）錯位交會，承受 30m/s 爬升與急轉 G 力。</li>
+          <li><b>氣動機臂護套與馬達短艙 (155g)</b>：4 組翼型整流罩（42×16mm）搭配 Ø42×65mm 子彈型馬達短艙，將馬達向後墊高以避開機臂尾流。</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="module-card" data-mod="M5">
+      <div class="module-header">
+        <span><span class="dot" style="background:#94a3b8;"></span>【M5】推進動力模組 (馬達+槳×4)</span>
+        <span class="mass-badge">480 g</span>
+      </div>
+      <div class="module-body">
+        <span class="spec-tag">馬達：2812 / 3115 (1050KV)</span>
+        <span class="spec-tag">螺旋槳：8060 / 7065 Pusher</span>
+        <span class="spec-tag">總推力：9.6~11.2 kgf</span>
+        <ul class="sub-list">
+          <li><b>高壓無刷馬達 ×4 (410g)</b>：定子 Ø28~31 × 12~15mm，900~1150KV，單顆尺寸 Ø35×26mm（重約 102g 含長導線），單軸峰值功率 1.3kW。</li>
+          <li><b>高螺距推進螺旋槳 ×4 (70g)</b>：7~8 吋高螺距玻纖尼龍槳（螺距 6.0~6.5 inch），採朝向機尾吹風的 Pusher 構型，8S 滿載理論螺距極速達 265~300 km/h。</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="module-card" data-mod="M6">
+      <div class="module-header">
+        <span><span class="dot" style="background:#f97316;"></span>【M6】航電、飛控與大電流電調模組</span>
+        <span class="mass-badge">190 g</span>
+      </div>
+      <div class="module-body">
+        <span class="spec-tag">塔體尺寸：52 × 52 × 65 mm</span>
+        <span class="spec-tag">Z軸區間：70~135 mm</span>
+        <ul class="sub-list">
+          <li><b>8S 高壓四合一電調 (42g)</b>：45×58×8mm，持續電流 70A~80A（峰值 100A），附 CNC 鋁散熱片與 1000uF/50V 抗突波電容。</li>
+          <li><b>飛控與 AI 導引板 (40g)</b>：STM32F405/H743 飛控（15g）+ 選配 TFL-1 末端視覺自動鎖定協同處理器（25g）。</li>
+          <li><b>圖傳與抗干擾鏈路 (83g)</b>：Hornet Vision 數位圖傳 / 2.5W 大功率 VTX（55g 含天線）+ 雙頻 ELRS 接收機與外部安全插銷（28g）。</li>
+          <li><b>減震支架與控制線束 (25g)</b>：安裝於尾錐負壓排氣通道內強制風冷。</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="module-card" data-mod="M7">
+      <div class="module-header">
+        <span><span class="dot" style="background:#06b6d4;"></span>【M7】光學尋標器與尾座腳架模組</span>
+        <span class="mass-badge">210 g</span>
+      </div>
+      <div class="module-body">
+        <span class="spec-tag">尋標艙：44 × 42 × 56 mm</span>
+        <span class="spec-tag">接地跨距：Ø210 mm</span>
+        <ul class="sub-list">
+          <li><b>Kurbas 熱成像/光學尋標吊艙 (70g)</b>：外掛於尾錐側面，內置 Odd Systems Kurbas-256/640 非致冷熱像儀機芯（32g）或星光夜視鏡頭，視軸指向機頭衝刺方向（38g 減震外殼）。</li>
+          <li><b>尾部格柵防撞環與四足腳架 (140g)</b>：底部 Ø105mm 黑色防撞排氣環（55g）+ 4 支鮮黃色高韌性 TPU/PETG 尾座起落腳架（85g），支援陸地或 Magura 無人艇垂直發射。</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- 手機版專用底部導覽列 -->
+  <div id="mobile-nav">
+    <button class="m-tab active" data-target="ui-panel">🎛️ 3D控制與模組</button>
+    <button class="m-tab" data-target="spec-panel">📊 規格與重量</button>
+    <button class="m-tab" data-target="info-panel">🎯 用途與成本</button>
+    <button class="m-tab" data-target="none">👁️ 全螢幕3D</button>
+  </div>
+
+  <button id="toggleSpecBtn">展開規格與重量表 ☰</button>
+  <div id="bottom-hint">滑鼠左鍵旋轉 | 滾輪縮放 | 右鍵平移 | 點擊左右面板模組可「單獨高亮透視」該機構</div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0f141c);
+
+    const camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 1, 6000);
+    // 依據螢幕寬度自動調整初始鏡頭距離（手機螢幕較窄時拉遠鏡頭並上移視野中心）
+    const isMobileInit = window.innerWidth <= 900;
+    camera.position.set(isMobileInit ? 820 : 680, isMobileInit ? 480 : 420, isMobileInit ? 920 : 780);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    document.body.appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    if (isMobileInit) controls.target.set(0, -110, 0);
+
+    scene.add(new THREE.AmbientLight(0xffffff, 0.75));
+    const dirLight1 = new THREE.DirectionalLight(0xffffff, 1.3);
+    dirLight1.position.set(500, 800, 600);
+    scene.add(dirLight1);
+    const dirLight2 = new THREE.DirectionalLight(0x90b0ff, 0.55);
+    dirLight2.position.set(-500, -400, -400);
+    scene.add(dirLight2);
+
+    const grid = new THREE.GridHelper(1200, 24, 0x334155, 0x1e293b);
+    grid.position.y = -320;
+    scene.add(grid);
+
+    const materials = {
+      M1: new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.3, metalness: 0.3, transparent: true, opacity: 1.0 }),
+      M2: new THREE.MeshStandardMaterial({ color: 0x2563eb, roughness: 0.3, metalness: 0.2, transparent: true, opacity: 1.0 }),
+      M3: new THREE.MeshPhysicalMaterial({ color: 0x5c6b43, roughness: 0.45, metalness: 0.1, transparent: true, opacity: 0.40, side: THREE.DoubleSide }),
+      M4: new THREE.MeshStandardMaterial({ color: 0x22c55e, roughness: 0.3, metalness: 0.4, transparent: true, opacity: 1.0 }),
+      M5_motor: new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.35, metalness: 0.6, transparent: true, opacity: 1.0 }),
+      M5_prop: new THREE.MeshStandardMaterial({ color: 0x94a3b8, transparent: true, opacity: 0.45, side: THREE.DoubleSide }),
+      M6: new THREE.MeshStandardMaterial({ color: 0xf97316, roughness: 0.3, metalness: 0.3, transparent: true, opacity: 1.0 }),
+      M7_cam: new THREE.MeshStandardMaterial({ color: 0x06b6d4, roughness: 0.2, metalness: 0.6, transparent: true, opacity: 1.0 }),
+      M7_leg: new THREE.MeshStandardMaterial({ color: 0xeab308, roughness: 0.3, transparent: true, opacity: 1.0 }),
+      M7_ring: new THREE.MeshStandardMaterial({ color: 0x1e242b, roughness: 0.4, metalness: 0.5, transparent: true, opacity: 1.0 })
+    };
+
+    const droneRoot = new THREE.Group();
+    scene.add(droneRoot);
+
+    const noseGroup = new THREE.Group();
+    const midGroup = new THREE.Group();
+    const armGroup = new THREE.Group();
+    const tailGroup = new THREE.Group();
+    const legGroup = new THREE.Group();
+    const cgGroup = new THREE.Group();
+    droneRoot.add(noseGroup, midGroup, armGroup, tailGroup, legGroup, cgGroup);
+
+    // 1. 頂部鼻錐 (M3) 與 戰鬥部 (M1)
+    const noseGeo = new THREE.SphereGeometry(68, 32, 24, 0, Math.PI * 2, 0, Math.PI / 2);
+    noseGeo.scale(1, 1.6, 1);
+    const noseMesh = new THREE.Mesh(noseGeo, materials.M3);
+    noseMesh.position.y = 110;
+    noseGroup.add(noseMesh);
+
+    const ringMesh = new THREE.Mesh(new THREE.CylinderGeometry(69.5, 69.5, 10, 36), materials.M3);
+    ringMesh.position.y = 110;
+    noseGroup.add(ringMesh);
+
+    const warheadMesh = new THREE.Mesh(new THREE.CylinderGeometry(42, 44, 85, 28), materials.M1);
+    warheadMesh.position.y = 155;
+    noseGroup.add(warheadMesh);
+
+    // 2. 中央圓筒機身、後掠主翼 (M3) 與 8S3P 電池組 (M2)
+    const bodyMesh = new THREE.Mesh(new THREE.CylinderGeometry(68, 68, 200, 32), materials.M3);
+    bodyMesh.position.y = 10;
+    midGroup.add(bodyMesh);
+
+    const portMesh = new THREE.Mesh(new THREE.BoxGeometry(16, 48, 8), materials.M7_ring);
+    portMesh.position.set(0, 50, 66);
+    midGroup.add(portMesh);
+
+    const wingShape = new THREE.Shape();
+    wingShape.moveTo(0, 55);
+    wingShape.lineTo(190, 15);
+    wingShape.lineTo(190, -35);
+    wingShape.lineTo(0, -45);
+    wingShape.closePath();
+    const wingExtrude = new THREE.ExtrudeGeometry(wingShape, { depth: 8, bevelEnabled: true, bevelThickness: 2, bevelSize: 2 });
+    const leftWing = new THREE.Mesh(wingExtrude, materials.M3);
+    leftWing.position.set(60, 20, -4);
+    const rightWing = leftWing.clone();
+    rightWing.scale.x = -1;
+    rightWing.position.set(-60, 20, 4);
+    midGroup.add(leftWing, rightWing);
+
+    const batteryMesh = new THREE.Mesh(new THREE.BoxGeometry(66, 146, 86), materials.M2);
+    batteryMesh.position.y = 20;
+    midGroup.add(batteryMesh);
+
+    // 3. X 型機臂、貫穿式碳纖主樑 (M4) 與 推進馬達+螺旋槳 (M5)
+    const propSpinners = [];
+    for (let i = 0; i < 4; i++) {
+      const angle = (i * Math.PI / 2) + (Math.PI / 4);
+      const strutHolder = new THREE.Group();
+      strutHolder.rotation.y = angle;
+
+      if (i < 2) {
+        const spar = new THREE.Mesh(new THREE.BoxGeometry(380, 14, 14), materials.M4);
+        spar.position.y = -103 - (i * 14);
+        strutHolder.add(spar);
+      }
+
+      const armShell = new THREE.Mesh(new THREE.BoxGeometry(145, 42, 16), materials.M3);
+      armShell.position.set(125, -110, 0);
+      strutHolder.add(armShell);
+
+      const pod = new THREE.Mesh(new THREE.CylinderGeometry(20, 22, 65, 20), materials.M3);
+      pod.position.set(195, -115, 0);
+      strutHolder.add(pod);
+
+      const podCap = new THREE.Mesh(new THREE.SphereGeometry(20, 16, 12, 0, Math.PI*2, 0, Math.PI/2), materials.M3);
+      podCap.position.set(195, -82.5, 0);
+      strutHolder.add(podCap);
+
+      const motor = new THREE.Mesh(new THREE.CylinderGeometry(17.5, 17.5, 26, 20), materials.M5_motor);
+      motor.position.set(195, -158, 0);
+      strutHolder.add(motor);
+
+      const propGroup = new THREE.Group();
+      propGroup.position.set(195, -174, 0);
+      const disk = new THREE.Mesh(new THREE.CylinderGeometry(98, 98, 2, 28), materials.M5_prop);
+      const blade1 = new THREE.Mesh(new THREE.BoxGeometry(192, 2.5, 18), materials.M5_motor);
+      const blade2 = new THREE.Mesh(new THREE.BoxGeometry(18, 2.5, 192), materials.M5_motor);
+      propGroup.add(disk, blade1, blade2);
+      strutHolder.add(propGroup);
+      propSpinners.push(propGroup);
+
+      armGroup.add(strutHolder);
+    }
+
+    // 4. 機尾收斂段 (M3)、飛控電調塔 (M6) 與 光學尋標艙 (M7)
+    const tailCone = new THREE.Mesh(new THREE.CylinderGeometry(68, 46, 130, 32), materials.M3);
+    tailCone.position.y = -155;
+    tailGroup.add(tailCone);
+
+    const fcStack = new THREE.Mesh(new THREE.BoxGeometry(52, 65, 52), materials.M6);
+    fcStack.position.y = -150;
+    tailGroup.add(fcStack);
+
+    const seekerPod = new THREE.Mesh(new THREE.BoxGeometry(44, 56, 42), materials.M7_cam);
+    seekerPod.position.set(0, -165, 62);
+    const lens = new THREE.Mesh(new THREE.CylinderGeometry(13, 13, 14, 20), materials.M7_ring);
+    lens.rotation.x = Math.PI / 2;
+    lens.position.set(0, -165, 82);
+    tailGroup.add(seekerPod, lens);
+
+    // 5. 底部格柵散熱環與黃色尾座腳架 (M7)
+    const bottomRing = new THREE.Mesh(new THREE.TorusGeometry(46, 6, 12, 32), materials.M7_ring);
+    bottomRing.rotation.x = Math.PI / 2;
+    bottomRing.position.y = -222;
+    legGroup.add(bottomRing);
+
+    for (let i = 0; i < 4; i++) {
+      const angle = (i * Math.PI / 2) + (Math.PI / 4);
+      const legHolder = new THREE.Group();
+      legHolder.rotation.y = angle;
+      const leg = new THREE.Mesh(new THREE.BoxGeometry(45, 55, 8), materials.M7_leg);
+      leg.position.set(54, -238, 0);
+      leg.rotation.z = -0.35;
+      legHolder.add(leg);
+      legGroup.add(legHolder);
+    }
+
+    // 6. 全機重心與壓心標記
+    const cgSphere = new THREE.Mesh(new THREE.SphereGeometry(14, 20, 20), new THREE.MeshBasicMaterial({ color: 0xfacc15, wireframe: true }));
+    cgSphere.position.set(0, 19, 0);
+    const cgAxes = new THREE.AxesHelper(95);
+    cgAxes.position.set(0, 19, 0);
+    
+    const cpRing = new THREE.Mesh(new THREE.RingGeometry(72, 78, 32), new THREE.MeshBasicMaterial({ color: 0x38bdf8, side: THREE.DoubleSide }));
+    cpRing.rotation.x = Math.PI / 2;
+    cpRing.position.set(0, -15, 0);
+    cgGroup.add(cgSphere, cgAxes, cpRing);
+
+    // --- 互動邏輯：模組高亮與規格表聯動 ---
+    let baseShellOpacity = 0.40;
+    let activeMod = null;
+
+    function highlightModule(modId) {
+      activeMod = modId;
+      document.querySelectorAll('[data-mod]').forEach(el => {
+        if (el.dataset.mod === modId) {
+          el.classList.add('selected');
+          if (el.classList.contains('module-card')) el.classList.add('expanded');
+        } else {
+          el.classList.remove('selected');
+        }
+      });
+
+      if (!modId) {
+        materials.M1.opacity = 1.0;
+        materials.M2.opacity = 1.0;
+        materials.M3.opacity = baseShellOpacity;
+        materials.M4.opacity = 1.0;
+        materials.M5_motor.opacity = 1.0;
+        materials.M5_prop.opacity = 0.45;
+        materials.M6.opacity = 1.0;
+        materials.M7_cam.opacity = 1.0;
+        materials.M7_leg.opacity = 1.0;
+        materials.M7_ring.opacity = 1.0;
+        return;
+      }
+
+      materials.M1.opacity = (modId === 'M1') ? 1.0 : 0.08;
+      materials.M2.opacity = (modId === 'M2') ? 1.0 : 0.08;
+      materials.M3.opacity = (modId === 'M3') ? 0.85 : 0.12;
+      materials.M4.opacity = (modId === 'M4') ? 1.0 : 0.08;
+      materials.M5_motor.opacity = (modId === 'M5') ? 1.0 : 0.08;
+      materials.M5_prop.opacity = (modId === 'M5') ? 0.75 : 0.05;
+      materials.M6.opacity = (modId === 'M6') ? 1.0 : 0.08;
+      materials.M7_cam.opacity = (modId === 'M7') ? 1.0 : 0.08;
+      materials.M7_leg.opacity = (modId === 'M7') ? 1.0 : 0.08;
+      materials.M7_ring.opacity = (modId === 'M7') ? 1.0 : 0.08;
+    }
+
+    document.querySelectorAll('.legend-item, .spec-table tbody tr').forEach(item => {
+      item.addEventListener('click', () => {
+        const mod = item.dataset.mod;
+        highlightModule(activeMod === mod ? null : mod);
+        const card = document.querySelector(`.module-card[data-mod="${mod}"]`);
+        if (card) card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      });
+    });
+
+    document.querySelectorAll('.module-card .module-header').forEach(header => {
+      header.addEventListener('click', () => {
+        const card = header.parentElement;
+        const mod = card.dataset.mod;
+        const isExpanding = !card.classList.contains('expanded');
+        card.classList.toggle('expanded');
+        highlightModule(isExpanding ? mod : null);
+      });
+    });
+
+    document.getElementById('resetFilterBtn').addEventListener('click', () => highlightModule(null));
+
+    const opacitySlider = document.getElementById('opacitySlider');
+    const explodeSlider = document.getElementById('explodeSlider');
+    opacitySlider.addEventListener('input', (e) => {
+      baseShellOpacity = parseFloat(e.target.value);
+      materials.M3.opacity = baseShellOpacity;
+      document.getElementById('op-val').innerText = Math.round(baseShellOpacity * 100) + '%';
+    });
+
+    explodeSlider.addEventListener('input', (e) => {
+      const factor = parseFloat(e.target.value);
+      document.getElementById('ex-val').innerText = Math.round(factor * 100) + '%';
+      noseGroup.position.y = factor * 140;
+      midGroup.position.y = factor * 35;
+      armGroup.position.y = -factor * 35;
+      tailGroup.position.y = -factor * 110;
+      legGroup.position.y = -factor * 200;
+    });
+
+    document.getElementById('toggleWire').addEventListener('click', (e) => {
+      materials.M3.wireframe = !materials.M3.wireframe;
+      e.target.classList.toggle('active');
+    });
+
+    let isHorizontal = false;
+    document.getElementById('togglePose').addEventListener('click', (e) => {
+      isHorizontal = !isHorizontal;
+      droneRoot.rotation.x = isHorizontal ? -Math.PI / 2.2 : 0;
+      e.target.classList.toggle('active');
+    });
+
+    document.getElementById('toggleCG').addEventListener('click', (e) => {
+      cgGroup.visible = !cgGroup.visible;
+      e.target.classList.toggle('active');
+    });
+
+    // 電腦版右側規格面板收合
+    const specPanel = document.getElementById('spec-panel');
+    document.getElementById('collapseSpecBtn').addEventListener('click', () => specPanel.classList.add('collapsed'));
+    document.getElementById('toggleSpecBtn').addEventListener('click', () => specPanel.classList.remove('collapsed'));
+
+    // 手機版底部頁籤切換邏輯
+    const mobileTabs = document.querySelectorAll('.m-tab');
+    const panels = ['ui-panel', 'spec-panel', 'info-panel'];
+    mobileTabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        mobileTabs.forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        const targetId = tab.dataset.target;
+        panels.forEach(id => {
+          const el = document.getElementById(id);
+          if (id === targetId) el.classList.add('m-active');
+          else el.classList.remove('m-active');
+        });
+        controls.target.set(0, targetId === 'none' ? 0 : -110, 0);
+      });
+    });
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    function animate() {
+      requestAnimationFrame(animate);
+      propSpinners.forEach((p, idx) => {
+        p.rotation.y += (idx % 2 === 0 ? 0.25 : -0.25);
+      });
+      controls.update();
+      renderer.render(scene, camera);
+    }
+    animate();
+  </script>
+</body>
+</html>
